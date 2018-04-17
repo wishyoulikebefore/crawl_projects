@@ -36,14 +36,13 @@ user_agents = [
 
 start_url = "http://q.10jqka.com.cn/gn"
 
-"""
-raw_cookies = "v=Auwq-YlCmm36Ro5RTAVoV9rivssfpZEOkkqkA0Yt-jM6-IL5brVg3-JZdKeV; Hm_lvt_78c58f01938e4d85eaf619eae71b4ed1=1523759613; historystock=300188; spversion=20130314"
+raw_cookies = "v=AoBGvUUuzpZbAbKSWww8W-7GUg9TCWTTBu241_oRTBsudS49ohk0Y1b9iGVJ; Hm_lvt_78c58f01938e4d85eaf619eae71b4ed1=1523759613; historystock=300188; spversion=20130314"
 cookies={}
 for line in raw_cookies.split(';'):
     key, value = line.split('=', 1)
     cookies[key] = value
-"""
-def getHtmlPage_GBK(url):
+
+def getHtmlPage_GBK(url,saveFile=None):
     random_user_agent = random.choice(user_agents)
     headers = {
         'User-Agent': random_user_agent,
@@ -52,7 +51,14 @@ def getHtmlPage_GBK(url):
         "Connection": "keep - alive",
         "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         }
-    html = requests.get(url,headers=headers)
+    html = requests.get(url,headers=headers,cookies=cookies)
+    if saveFile:
+        if os.path.exists(saveFile+".txt"):
+            print("%s has been crawled" %(saveFile))
+        else:
+            with open(saveFile+".txt","wb") as f:
+                print("%s is crawling" % (saveFile))
+                f.write(html.content)
     html.encoding = 'gbk'
     soup = BeautifulSoup(html.text, 'lxml')
     return soup
@@ -71,24 +77,31 @@ def start_crawl(start_url):
         except:
             pageNum = 1
         output.write("%s\n" %(conceptName))
-        getStock(conceptIndex,int(pageNum))
+        getStock(conceptName,conceptIndex,int(pageNum))
+        print("%s has been finished" % (conceptName))
 
-def getStock(conceptIndex,pageNum):
+def getStock(conceptName,conceptIndex,pageNum):
     for nu in range(pageNum):
-        targetUrl = "http://q.10jqka.com.cn/gn/detail/order/desc/page/%s/ajax/1/code/%s" %(nu,conceptIndex)
-        soup3 = getHtmlPage_GBK(targetUrl)
-        content3 = soup3.find("tbody").findall("tr")
+        targetUrl = "http://q.10jqka.com.cn/gn/detail/order/desc/page/%s/ajax/1/code/%s" %(nu+1,conceptIndex)
+        saveFile = "%s_%s.txt" %(conceptName,nu)
+        soup3 = getHtmlPage_GBK(targetUrl,saveFile)
+        content3 = soup3.find("tbody").find_all("tr")
         for item in content3:
-            td_list = item.findall("td")
+            td_list = item.find_all("td")
             stockIndex = td_list[1].get_text()
             stockName = td_list[2].get_text()
-            circulation_market_value = td_list[-3]
+            circulation_market_value = td_list[-3].get_text()
             output.write("%s\t%s\t%s\n" %(stockIndex,stockName,circulation_market_value))
-        time.sleep(2)
+        time.sleep(10*random.random())
+        if nu %4 == 0:
+            time.sleep(20*random.random())
+
 start_crawl(start_url)
 
 """
 尚未解决cookie登陆的问题
-可能还需要IP的切换
+IP切换也不行（爬取5个界面后就不行了）
 """
+
+
 
