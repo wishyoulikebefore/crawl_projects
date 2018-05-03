@@ -1,17 +1,9 @@
-import json
 import os
-import xlwt
 import time
 import requests
 from bs4 import BeautifulSoup
 import random
-
-"""
-考虑到概念的更新
-http://q.10jqka.com.cn/gn
-以300800安防为例
-http://q.10jqka.com.cn/gn/detail/order/desc/page/2/ajax/1/code/300800
-"""
+from selenium import webdriver
 
 isExists = os.path.exists("D:/python_stock/股票概念")
 if not isExists:
@@ -36,13 +28,7 @@ user_agents = [
 
 start_url = "http://q.10jqka.com.cn/gn"
 
-raw_cookies = "v=AoBGvUUuzpZbAbKSWww8W-7GUg9TCWTTBu241_oRTBsudS49ohk0Y1b9iGVJ; Hm_lvt_78c58f01938e4d85eaf619eae71b4ed1=1523759613; historystock=300188; spversion=20130314"
-cookies={}
-for line in raw_cookies.split(';'):
-    key, value = line.split('=', 1)
-    cookies[key] = value
-
-def getHtmlPage_GBK(url,saveFile=None):
+def getHtmlPage_GBK(url):
     random_user_agent = random.choice(user_agents)
     headers = {
         'User-Agent': random_user_agent,
@@ -51,14 +37,7 @@ def getHtmlPage_GBK(url,saveFile=None):
         "Connection": "keep - alive",
         "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         }
-    html = requests.get(url,headers=headers,cookies=cookies)
-    if saveFile:
-        if os.path.exists(saveFile+".txt"):
-            print("%s has been crawled" %(saveFile))
-        else:
-            with open(saveFile+".txt","wb") as f:
-                print("%s is crawling" % (saveFile))
-                f.write(html.content)
+    html = requests.get(url,headers=headers)
     html.encoding = 'gbk'
     soup = BeautifulSoup(html.text, 'lxml')
     return soup
@@ -67,41 +46,42 @@ def start_crawl(start_url):
     soup = getHtmlPage_GBK(start_url)
     content = soup.find("div",class_="cate_inner").find_all("a")
     for item in content:
-        returnUrl = item["href"]
-        conceptIndex = returnUrl.split("/")[-2]
+        conceptUrl = item["href"]
+        conceptIndex = conceptUrl.split("/")[-2]
         conceptName = item.get_text()
-        soup2 = getHtmlPage_GBK(returnUrl)
-        content2 = soup2.find("div",class_="m-pager")
-        try:
-            pageNum = content2.find_all("a")[-1]["page"]
-        except:
-            pageNum = 1
-        output.write("%s\n" %(conceptName))
-        getStock(conceptName,conceptIndex,int(pageNum))
-        print("%s has been finished" % (conceptName))
+        output.write("%s\t%s\n" %(conceptName,conceptIndex))
+        conceptFile = open(conceptName+".txt","a")
+        print("%s crawl start" %(conceptName))
+        my_webdriver(conceptUrl,conceptFile,conceptName)
+        print("%s crawl end" % (conceptName))
 
-def getStock(conceptName,conceptIndex,pageNum):
-    for nu in range(pageNum):
-        targetUrl = "http://q.10jqka.com.cn/gn/detail/order/desc/page/%s/ajax/1/code/%s" %(nu+1,conceptIndex)
-        saveFile = "%s_%s.txt" %(conceptName,nu)
-        soup3 = getHtmlPage_GBK(targetUrl,saveFile)
-        content3 = soup3.find("tbody").find_all("tr")
-        for item in content3:
-            td_list = item.find_all("td")
-            stockIndex = td_list[1].get_text()
-            stockName = td_list[2].get_text()
-            circulation_market_value = td_list[-3].get_text()
-            output.write("%s\t%s\t%s\n" %(stockIndex,stockName,circulation_market_value))
-        time.sleep(10*random.random())
-        if nu %4 == 0:
-            time.sleep(20*random.random())
+def my_webdriver(conceptUrl,conceptFile,conceptName):
+    browser = webdriver.Firefox()
+    browser.get(conceptUrl)
+    while browser.find_elements_by_xpath('//div[@id="m-page"]/a')[-1].text == "尾页":
+        button = browser.find_elements_by_xpath('//div[@id="m-page"]/a')[-2]
+        presentPage = browser.find_element_by_xpath('//div[@id="m-page"]/a[@class="cur"]').text
+        crawl_page(browser,conceptFile,conceptName)
+        print("第%s页爬取结束" % (presentPage))
+        button.click()
+        time.sleep(5)
+    crawl_page(browser,conceptFile,conceptName)
+    browser.close()
+    conceptFile.write("\n\n")
+    print("%s is over" %(conceptUrl))
+
+def crawl_page(browser,conceptFile,conceptName):
+    locate = browser.find_elements_by_xpath('//div[@id="maincont"]//tbody/tr')
+    presentPage = browser.find_element_by_xpath('//div[@id="m-page"]/a[@class="cur"]').text
+    record  =open("%s_%s.txt" %(conceptName,presentPage),"a")
+    record.write(browser.page_source)
+    record.close()
+    for item in locate:
+        stockName = item.find_elements_by_xpath("td")[2].text
+        output.write("%s\n" %(stockName))
+        conceptFile.write("%s\n" % (stockName))
 
 start_crawl(start_url)
-
-"""
-尚未解决cookie登陆的问题
-IP切换也不行（爬取5个界面后就不行了）
-"""
 
 
 
