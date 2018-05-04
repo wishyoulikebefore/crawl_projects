@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import time
 import random
+import multiprocessing
 
 source_url = "http://pt.vm.fudan.edu.cn/index.php?board="
 headers = {
@@ -14,38 +15,57 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.139 Safari/537.36"
 }
 targetForum = [23.0,24.0,25.0,17.0,29.0,28.0,27.0]
-output = open('/Users/zty/Downloads/PT爬虫结果.txt',"a")
 
-def start_crawl():
-    for indexNu in targetForum:
-        start_url = source_url+str(indexNu)
-        html_text = requests.get(start_url,headers=headers).text
-        pageNum = BeautifulSoup(html_text,"lxml").find("div",class_="pagelinks").find_all("a")[-3].get_text()
-        forum = BeautifulSoup(html_text,"lxml").find("div",class_="navigate_section").find_all("li")[-1].find("span").get_text()
-        output.write("%s板块共%s页\n" %(forum,pageNum))
-        print("开始爬取%s板块，共%s页" %(forum,pageNum))
-        crawl_forum(indexNu,pageNum)
+def start_crawl(indexNu):
+    start_url = source_url+str(indexNu)
+    html_text = requests.get(start_url,headers=headers).text
+    pageNum = BeautifulSoup(html_text,"lxml").find("div",class_="pagelinks").find_all("a")[-3].get_text()
+    forum = BeautifulSoup(html_text,"lxml").find("div",class_="navigate_section").find_all("li")[-1].find("span").get_text()
+    output = open("/Users/zty/Downloads/PT%s板块.txt" %(forum),"a")
+    print("开始爬取%s板块，共%s页" %(forum,pageNum))
+    output.write("共%s页\n" %(pageNum))
+    crawl_forum(indexNu,pageNum,output)
 
-def crawl_forum(indexNu,pageNum):
+def crawl_forum(indexNu,pageNum,output):
     for nu in range(int(pageNum)):
         offset = "%.*f" % (max(1, len(str(25 * nu))), int(indexNu) + 25 * nu / (10 ** len(str(25 * nu))))
         target_url = source_url + str(offset)
         html = requests.get(target_url, headers=headers)
         content = BeautifulSoup(html.text, "lxml").find("tbody").find_all("tr")
-        for piece in content[1:]:
+        for piece in content[1:-1]:
             try:
-                movieName = piece.find("strong").get_text()
+                sourceName = piece.find("strong").get_text()
+                linkUrl = piece.find("strong").find("a")["href"]
                 viewNum = piece.find(class_="stats stickybg").get_text().split("\n")[3].split()[0]
+                downloadSum = calDownloadTimes(linkUrl)
+                output.write("%s\t%s\t%s\n" % (sourceName, viewNum, downloadSum))
+                print("%s\t%s\t%s" % (sourceName, viewNum, downloadSum))
             except:
                 try:
-                    movieName = piece.find("span").get_text()
+                    sourceName = piece.find("span").get_text()
+                    linkUrl = piece.find("span").find("a")["href"]
                     viewNum = piece.find(class_="stats windowbg").get_text().split("\n")[3].split()[0]
+                    downloadSum = calDownloadTimes(linkUrl)
+                    output.write("%s\t%s\t%s\n" % (sourceName, viewNum, downloadSum))
+                    print("%s\t%s\t%s" % (sourceName, viewNum, downloadSum))
                 except:
-                    break
-            output.write("%s\t%s\n" % (movieName, viewNum))
-            if int(viewNum) > 5000:
-                print(movieName)
-                print(viewNum.strip())
+                    continue
         time.sleep(1 + random.random())
+    print("%s爬取结束" %(indexNu))
+    output.close()
 
-start_crawl()
+def calDownloadTimes(url):
+    sum = 0
+    html = requests.get(url, headers=headers)
+    torrents = BeautifulSoup(html.text, "lxml").find("div",class_="torrent_table").find("tbody").find_all("tr")
+    for torrent in torrents:
+        downloadTimes = torrent.find_all("td",class_="icon")[-1].get_text().split("/")[-1]
+        sum += int(downloadTimes)
+    return sum
+
+if __name__ == "__main__":
+    pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
+    for indexNu in targetForum:
+        pool.apply_async(start_crawl,(indexNu,))
+    pool.close()
+    pool.join()
