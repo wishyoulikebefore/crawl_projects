@@ -3,6 +3,7 @@
 事实证明pyquery比bs4爽多了
 可以利用class的特定字段避免V1版本中“推荐电影或TV”格式的部分不同
 利用特定字符“Views”排除tr节点中无关的首尾部分
+此脚本为mac英文操作系统，windows10中文操作系统会有所不同
 """
 
 import requests
