@@ -73,7 +73,7 @@ class crawlConcept_stock():
         for item in locate:
             stockCode = item.find_elements_by_xpath("td")[1].text
             stockName = item.find_elements_by_xpath("td")[2].text
-            self.collection.pushConcept(stockCode, stockName, self.conceptType, conceptName)
+            self.collection.updateConcept(stockCode, stockName, self.conceptType, conceptName)
             self.output.write("%s\t%s\n" % (stockName, stockCode))
             conceptFile.write("%s\t%s\n" % (stockName, stockCode))
         conceptFile.close()
