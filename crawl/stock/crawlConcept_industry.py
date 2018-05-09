@@ -1,23 +1,27 @@
 import os
-import random
+from stockMongo import stockConcept_mongo
 from selenium import webdriver
 import time
 import multiprocessing
+from commonUse import judge_date
 
-isExists = os.path.exists("D:/python_stock/股票概念/行业分类")
+today = judge_date()
+fileName = "D:/python_stock/股票概念/行业概念/"+today
+isExists = os.path.exists(fileName)
 if not isExists:
     print(u"创建文件夹")
-    os.makedirs("D:/python_stock/股票概念/行业分类")
-    os.chdir("D:/python_stock/股票概念/行业分类")
+    os.makedirs(fileName)
+    os.chdir(fileName)
 else:
-    os.chdir("D:/python_stock/股票概念/行业分类")
+    os.chdir(fileName)
 
 output = open("行业分类概念.txt","a")
 targetDict = {}
+collection = stockConcept_mongo()
 
-def startCrawl_industryConcept(url="http://q.10jqka.com.cn/thshy/"):
+def startCrawl_industryConcept():
     browser = webdriver.PhantomJS()
-    browser.get(url)
+    browser.get("http://q.10jqka.com.cn/thshy/")
     button = browser.find_elements_by_xpath('//div[@class="m-pager"]/a')[-2]
     crawl_page(browser)
     button.click()
@@ -34,13 +38,13 @@ def crawl_page(browser):
 
 def crawl_concept(conceptUrl,conceptName):
     print("开始爬取%s" %(conceptName))
+    output.write("%s\n" % (conceptName))
     browser = webdriver.Firefox()     #PhantomJS不行，可能是网站会识别无头浏览器
     browser.get(conceptUrl)
     try:
         while browser.find_elements_by_xpath('//div[@id="m-page"]/a')[-1].text == "尾页":
             button = browser.find_elements_by_xpath('//div[@id="m-page"]/a')[-2]
             presentPage = browser.find_element_by_xpath('//div[@id="m-page"]/a[@class="cur"]').text
-            print("%s第%s页开始爬取" % (conceptName, presentPage))
             crawl_stock(browser,conceptName)
             print("%s第%s页爬取结束" % (conceptName,presentPage))
             button.click()
@@ -48,12 +52,12 @@ def crawl_concept(conceptUrl,conceptName):
         crawl_stock(browser,conceptName)
         browser.close()
         output.write("\n\n")
-        print("%s is over" %(conceptName))
+        print("%s爬取结束" %(conceptName))
     except:
         crawl_stock(browser,conceptName)
         browser.close()
         output.write("\n\n")
-        print("%s is over" %(conceptName))
+        print("%s爬取结束" %(conceptName))
 
 def crawl_stock(browser,conceptName):
     conceptFile = open(conceptName+".txt","a")
@@ -69,10 +73,12 @@ def crawl_stock(browser,conceptName):
         print("%s网页储存出现问题" %(conceptName))
     record.close()
     for item in locate:
-        stockIndex = item.find_elements_by_xpath("td")[1].text
+        stockCode = item.find_elements_by_xpath("td")[1].text
         stockName = item.find_elements_by_xpath("td")[2].text
-        output.write("%s\t%s\n" %(stockName,stockIndex))
-        conceptFile.write("%s\t%s\n" %(stockName,stockIndex))
+        collection.pushConcept(stockCode,stockName,"industryConcept",conceptName)
+        output.write("%s\t%s\n" %(stockName,stockCode))
+        conceptFile.write("%s\t%s\n" %(stockName,stockCode))
+    conceptFile.close()
 
 if __name__ == "__main__":
     startCrawl_industryConcept()
