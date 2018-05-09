@@ -1,35 +1,32 @@
-#需要确认tushare确认一下，可能会出现西藏矿业那种情况
 from bs4 import BeautifulSoup
 import requests
 import os
-import datetime
 import xlwt
 import re
-from mongo_stock import *
+from commonUse import judge_date,getHtmlPage_GBK
 import time
 
-def get(url):
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'}
-    start_html = requests.get(url,headers=headers)
-    start_html.encoding = 'gbk'
-    soup = BeautifulSoup(start_html.text, 'lxml')
-    return soup
+start_url="http://data.eastmoney.com/stock/lhb.html"
+today = judge_date()
 
-def tract_yyb_buy(yyb_name,stock_name,buy_money):
-    if_famous_yyb = [key for key in yyb_dict.keys() if key in yyb_name]
-    if len(if_famous_yyb) == 0:
-        pass
-    else:
-        yyb_name = if_famous_yyb[0]
-        tract_db.push_buy(yyb_name,stock_name,buy_money)
+isExists = os.path.exists(os.path.join("D:\lhb",today))
+if not isExists:
+    print(u"创建名为",today,u"文件夹")
+    os.makedirs(os.path.join("D:\lhb",today))
+    os.chdir(os.path.join("D:\lhb",today))
+else:
+    os.chdir(os.path.join("D:\lhb", today))
 
-def tract_yyb_sell(yyb_name,stock_name,sell_money):
-    if_famous_yyb = [key for key in yyb_dict.keys() if key in yyb_name]
-    if len(if_famous_yyb) == 0:
-        pass
-    else:
-        yyb_name = if_famous_yyb[0]
-        tract_db.push_sell(yyb_name,stock_name,sell_money)
+yyb_dict = {"上海溧阳路": "孙哥", "上海瑞金南路": "孙哥", "上海古北路": "孙哥", "上海淮海中路": "孙哥","中信证券股份有限公司上海牡丹江路证券营业部":"孙哥",
+            "中信证券股份有限公司上海分公司": "孙哥","光大证券股份有限公司宁波解放南路证券营业部": "赵一万",
+            "绍兴解放北路": "赵一万", "中国银河证券股份有限公司绍兴": "赵一万", "中国银河证券股份有限公司北京阜成路": "赵一万",
+            "湘财证券股份有限公司上海陆家嘴": "赵一万", "华泰证券股份有限公司永嘉阳光大道": "赵一万",
+            "佛山绿景路证券营业部": "佛山", "佛山季华六路证券营业部": "佛山", "佛山普澜二路证券营业部": "佛山",
+            "华鑫证券有限责任公司上海宛平南路": "炒股养家", "华鑫证券有限责任公司宁波沧海路": "炒股养家", "华鑫证券有限责任公司上海松江": "炒股养家",
+            '招商证券股份有限公司深圳蛇口': "乔帮主", '海通证券股份有限公司北京阜外大街证券营业部': "刺客", '国泰君安证券股份有限公司南京太平南路': "作手新一",
+            '方正证券股份有限公司上海保定路证券营业部': "神秘游资","光大证券股份有限公司深圳金田路证券营业部": "神秘游资","国元证券股份有限公司上海虹桥路证券营业部": "神秘游资",
+            "中泰证券股份有限公司深圳欢乐海岸证券营业部":"神秘游资"
+            }
 
 def detect_famous_yyb(input_list,stock_name,state):
     detected_yyb = [key for key in yyb_dict.keys() for yyb in input_list if key in yyb]
@@ -57,32 +54,8 @@ def operate_reason(percent,color,average_cost,closing_price):
             return "低吸"
     else:
         return
-
-url="http://data.eastmoney.com/stock/lhb.html"
-simplified_today = judge_date()
-
-yyb_dict = {"上海溧阳路": "孙哥", "上海瑞金南路": "孙哥", "上海古北路": "孙哥", "上海淮海中路": "孙哥","中信证券股份有限公司上海牡丹江路证券营业部":"孙哥",
-            "中信证券股份有限公司上海分公司": "孙哥","光大证券股份有限公司宁波解放南路证券营业部": "赵一万",
-            "绍兴解放北路": "赵一万", "中国银河证券股份有限公司绍兴": "赵一万", "中国银河证券股份有限公司北京阜成路": "赵一万",
-            "湘财证券股份有限公司上海陆家嘴": "赵一万", "华泰证券股份有限公司永嘉阳光大道": "赵一万",
-            "佛山绿景路证券营业部": "佛山", "佛山季华六路证券营业部": "佛山", "佛山普澜二路证券营业部": "佛山",
-            "华鑫证券有限责任公司上海宛平南路": "炒股养家", "华鑫证券有限责任公司宁波沧海路": "炒股养家", "华鑫证券有限责任公司上海松江": "炒股养家",
-            '招商证券股份有限公司深圳蛇口': "乔帮主", '海通证券股份有限公司北京阜外大街证券营业部': "刺客", '国泰君安证券股份有限公司南京太平南路': "作手新一",
-            '方正证券股份有限公司上海保定路证券营业部': "神秘游资","光大证券股份有限公司深圳金田路证券营业部": "神秘游资","国元证券股份有限公司上海虹桥路证券营业部": "神秘游资",
-            "中泰证券股份有限公司深圳欢乐海岸证券营业部":"神秘游资"
-            }
-
-tract_db = MogoQueue("stock","lhb")
-
-isExists = os.path.exists(os.path.join("D:\lhb",simplified_today))
-if not isExists:
-    print(u"创建名为",simplified_today,u"文件夹")
-    os.makedirs(os.path.join("D:\lhb",simplified_today))
-    os.chdir(os.path.join("D:\lhb",simplified_today))
-else:
-    os.chdir(os.path.join("D:\lhb", simplified_today))
-
-stock_item = get(url).find_all("span",class_="wname")
+    
+stock_item = getHtmlPage_GBK(start_url).find_all("span",class_="wname")
 
 for stock in stock_item:
     stock_el=stock.find("a")
@@ -91,7 +64,7 @@ for stock in stock_item:
     isExists = os.path.exists(stock_name+"_"+stock_code+".xls")
     if not isExists:
         page_url="http://data.eastmoney.com"+str(stock_el["href"])
-        soup2=get(page_url)
+        soup2=getHtmlPage_GBK(page_url)
         try:
             basic_info = soup2.find("div", class_="data-tips")
             lhb_reason = basic_info.find("div",class_="left con-br").get_text().split("：")[1]
@@ -145,7 +118,6 @@ for stock in stock_item:
             table.write(yyb_index+4,4,total_sell)
             table.write(yyb_index+4,5,sell_proportion)
             table.write(yyb_index+4,6,net_amount)
-            tract_yyb_buy(yyb_name,stock_name,total_buy)
             if buy_proportion != "-" and buy_proportion != "0.00%" and float(re.sub("%","",buy_proportion)) > 0.05:
                 average_buy_cost=round(float(total_buy)/(float(buy_proportion.replace("%",""))*total_cjl*0.01),2)
                 table.write(yyb_index+4,7,average_buy_cost)
@@ -185,7 +157,6 @@ for stock in stock_item:
                 table.write(yyb_index+11,4,total_sell)
                 table.write(yyb_index+11,5,sell_proportion)
                 table.write(yyb_index+11,6,net_amount)
-                tract_yyb_sell(yyb_name,stock_name,total_sell)
                 if buy_proportion != "-" and buy_proportion != "0.00%" and float(re.sub("%","",buy_proportion)) > 0.05:
                     table.write(yyb_index+11,7,round(float(total_buy)/(float(buy_proportion.replace("%",""))*total_cjl*0.01),2))
                 elif buy_proportion != "-" and float(re.sub("%", "", buy_proportion)) <= 0.05:
@@ -206,5 +177,7 @@ for stock in stock_item:
         time.sleep(2)
     else:
         print(u"已经存在",stock_name)
+
+
 
 
