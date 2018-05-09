@@ -73,7 +73,7 @@ def crawl_stock(browser,conceptName):
     for item in locate:
         stockCode = item.find_elements_by_xpath("td")[1].text
         stockName = item.find_elements_by_xpath("td")[2].text
-        collection.pushConcept(stockCode, stockName, "jqkConcept", conceptName)
+        collection.updateConcept(stockCode, stockName, "jqkConcept", conceptName)
         output.write("%s\t%s\n" %(stockName,stockCode))
         conceptFile.write("%s\t%s\n" %(stockName,stockCode))
     conceptFile.close()
