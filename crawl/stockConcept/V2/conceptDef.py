@@ -8,18 +8,11 @@ import multiprocessing
 def startCrawl(conceptType,url):
     """
     jqkConcept：http://q.10jqka.com.cn/gn/
+
     regionConcept：http://q.10jqka.com.cn/dy/
     industryConcept：http://q.10jqka.com.cn/thshy/
     """
-    fileName = "D:/python_stock/股票概念/%s/%s" %(conceptType,judge_date())
     targetDict = {}
-    isExists = os.path.exists(fileName)
-    if not isExists:
-        print(u"创建文件夹")
-        os.makedirs(fileName)
-        os.chdir(fileName)
-    else:
-        os.chdir(fileName)
     soup = getHtmlPage_GBK(url)
     content = soup.find("div", class_="cate_inner").find_all("a")
     for item in content:
@@ -50,30 +43,19 @@ def crawl_page(conceptName,conceptUrl,conceptType):
 
 def crawl_stock(browser,conceptName,conceptType):
     locate = browser.find_elements_by_xpath('//div[@id="maincont"]//tbody/tr')
-    try:
-        presentPage = browser.find_element_by_xpath('//div[@id="m-page"]/a[@class="cur"]').text
-    except:
-        presentPage = 1
-    record = open("%s_%s.txt" % (conceptName, presentPage), "a")
-    try:
-        record.write(browser.page_source)
-    except:
-        print("%s网页储存出现问题" % (conceptName))
-    record.close()
     for item in locate:
         stockCode = item.find_elements_by_xpath("td")[1].text
         stockName = item.find_elements_by_xpath("td")[2].text
         stockConcept_mongo().updateConcept(stockCode, stockName, conceptType, conceptName)
 
-
 if __name__ == "__main__":
     pool = multiprocessing.Pool(processes=multiprocessing.cpu_count())
     conceptDict = {"regionConcept":"http://q.10jqka.com.cn/dy/",
-                   "industryConcept":"http://q.10jqka.com.cn/thshy/",
-                   "jqkConcept":"http://q.10jqka.com.cn/gn/"}
+                    "industryConcept":"http://q.10jqka.com.cn/thshy/",
+                    "jqkConcept":"http://q.10jqka.com.cn/gn/"}
     for key,value in conceptDict.items():
         targetDict = startCrawl(key,value)
         for conceptName in targetDict:
-            pool.apply_async(crawl_page, (conceptName, targetDict.get(conceptName), "regionConcept",))
-        pool.close()
-        pool.join()
+            pool.apply_async(crawl_page, (conceptName, targetDict.get(conceptName), key,))
+    pool.close()
+    pool.join()
