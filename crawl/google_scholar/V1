@@ -1,0 +1,28 @@
+from pyquery import PyQuery as pq
+import requests
+import re
+
+start_url = "https://scholar.google.com/scholar?as_ylo=2014&q=tuberculosis+drug+resistance&hl=zh-CN&as_sdt=0,5"
+#翻页，参数顺序可改        https://scholar.google.com/scholar?start=10&q=tuberculosis+drug+resistance&hl=zh-CN&as_sdt=0,5&as_ylo=2014
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; it; rv:1.8.1.11) Gecko/20071127 Firefox/2.0.0.11',
+    "Connection": "keep - alive",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+}
+doc = pq(requests.get(start_url,headers=headers).text)
+content = doc("#gs_res_ccl_mid .gs_ri")
+
+for item in content.items():
+    paper_href = item(".gs_rt a").attr("href")
+    if paper_href:
+        paper_name = item(".gs_rt a").text()
+        paper_info = item(".gs_a").text().split("-")
+        author = paper_info[0]
+        journal = paper_info[1].split(",")[0]
+        published_time = paper_info[1].split(",")[1]
+        try:
+            citeNum = item(".gs_fl a:nth-child(3)").text().replace("被引用次数：","")
+        except Exception as e:
+            citeNum = 0
+    else:
+        continue
