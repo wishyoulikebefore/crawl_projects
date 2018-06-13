@@ -16,10 +16,13 @@ from email.mime.multipart import MIMEMultipart
 3）自动发送邮件：autoMail() myMail()
 """
 
-def judge_date(time=datetime.datetime.now()):
+def judge_date():
     """
     定位时间到最近的工作日，如周六周日定为周五
     """
+    time = datetime.datetime.now()
+    if time.hour <= 15:
+        time = time- datetime.timedelta(days=1)
     if time.isoweekday() == 7:
         return (time - datetime.timedelta(days=2)).strftime('%Y-%m-%d')
     elif time.isoweekday() == 6:
@@ -195,3 +198,4 @@ def myMail(subject,content,graphs=None,graphsName=None,files=None,filesName=None
         s.quit()
     except smtplib.SMTPException:
         print("发送失败")
+
