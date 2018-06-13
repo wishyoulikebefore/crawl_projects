@@ -5,7 +5,7 @@ import itertools
 def getConZtNum(stockCode,period=20):
     """
     获取个股连续涨停数目
-    MGD,竟然会出现某些股票当日数据不更新;TM还有的数据没有
+    MGD,竟然会出现某些股票当日数据不更新;TM还有的数据没有\
     这个信息更新比较慢，需要交叉验证一下
     """
     today = datetime.datetime.now()
@@ -27,6 +27,28 @@ def getConZtNum(stockCode,period=20):
         else:
             num += 1
         return num
+
+def get_KbGd(stockCode):
+    df = ts.get_k_data(stockCode)
+    kbgd = 1
+    marketTime = len(df.index)
+    if marketTime == 1:
+        return False
+    else:
+        for nu in range(marketTime-1):
+            slice = df.ix[nu+1]
+            if slice["open"] == slice["close"] == slice["high"] == slice["low"]:
+                kbgd += 1
+            else:
+                break
+    if kbgd == marketTime:
+        return False
+    else:
+        return kbgd
+
+
+
+
 
 
 
