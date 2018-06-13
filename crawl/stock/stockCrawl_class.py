@@ -1,11 +1,11 @@
 import os
 from stock_pymongo import *
 from selenium import webdriver
-from commonFunctions import getHtmlPage_GBK,judge_date
+from commonFunctions import *
 import time
 import re
 import xlwt
-from selenium.webdriver.support.wait import WebDriverWait
+from pyquery import PyQuery as pq
 from dateutil.parser import parse
 
 """
@@ -13,7 +13,6 @@ from dateutil.parser import parse
 限售解禁：crawl_xsjj
 停复牌：crawl_tfp()
 高送转：crawl_Gsz()
-板块涨幅：crawl_conceptRise()
 """
 
 class CrawlLhb():
@@ -325,6 +324,67 @@ class CrawlGsz():     #高送转
                 else:
                     pass
 
+class CrawlXkhs():
 
+    def __init__(self,timeout=300):
+        self.url = "http://www.chinaclear.cn/"
+        self.collection = XkhsMongo()
 
+    def startCrawl(self):
+        xkhs = pq(getPage(self.url))(".kai-list p").text()
+        xkhs = re.findall("\d+\.\d+", xkhs)[0] + "万"
+        period = pq(getPage(self.url))(".biaotiwenzi .rq").text()
+        if self.collection.find_one(period):
+            print("数据还未更新")
+        else:
+            self.collection.insert_one(period,xkhs)
 
+class CrawlSubNewStock():
+
+    def __init__(self,delta=180,timeout=300):
+        self.url = "http://data.10jqka.com.cn/ipo/xgsr/"
+        self.collection = SubNewStockMongo()
+        self.conceptCollcetion = StockConceptMongo()
+        self.delta = delta
+        self.now = datetime.datetime.now()
+        self.continueCrawl = True
+
+    def startCrawl(self):
+        browser = webdriver.Firefox()
+        browser.get(self.url)
+        while self.continueCrawl:
+            button = browser.find_elements_by_xpath('//div[@class="m-page J-ajax-page"]/a')[-2]
+            self.crawl_page(browser)
+            button.click()
+            time.sleep(3)
+        browser.close()
+        self.dailyCheck()
+
+    def crawl_page(self,browser):
+        tr_list = browser.find_elements_by_xpath('//table[@class="m-table J-ajax-table"]/tbody/tr')
+        for tr in tr_list:
+            td_list = tr.find_elements_by_xpath("td")
+            stockCode = td_list[1].text.strip()
+            stockName  =td_list[2].text.strip()
+            ttm = td_list[3].text
+            issue_price = td_list[4].text
+            if self.getStock(ttm):
+                self.collection.update(stockCode,stockName,ttm,issue_price)
+            else:
+                self.continueCrawl = False
+                break
+
+    def getStock(self,ttm):
+        timedelta = self.now - parse(ttm)
+        return timedelta.days < self.delta
+
+    def dailyCheck(self):
+        for item in self.collection.collection.find():
+            if not self.getStock(item["ttm"]):
+                stockCode = item["stockCode"]
+                stockName = item["stockName"]
+                self.collection.delete_one(stockCode)
+                self.conceptCollcetion.pull(stockCode,"jqkConcept","开板近端次新")
+                print("%s %s上市日期已超过%s，因此剔除" %(stockCode,stockName,self.delta))
+            else:
+                pass
