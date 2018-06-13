@@ -6,6 +6,7 @@ from functions_basedOn_ts import getConZtNum
 from commonFunctions import judge_date
 from dateutil.parser import parse
 import datetime
+from functions_basedOn_ts import get_KbGd
 
 """
 使用类的继承，简化
@@ -32,11 +33,13 @@ class StockConceptMongo():
     def find_one(self,stockCode):
         return self.collection.find_one({"stockCode":stockCode})
 
-    def update(self,stockCode,stockName,conceptField,concept):
-        self.collection.update({"stockCode":stockCode},
-                               {"$set":{"stockName":stockName},"$addToSet":{conceptField:concept}},
-                               upsert=True)
+    def pull(self,stockCode,conceptType,concept):
+        self.collection.update({"stockCode":stockCode},{"$pull":{conceptType:concept}})
 
+    def update(self,stockCode,stockName,conceptType,concept):
+        self.collection.update({"stockCode":stockCode},
+                               {"$set":{"stockName":stockName},"$addToSet":{conceptType:concept}},
+                               upsert=True)
 
 class SubNewStockMongo():
     """
@@ -44,112 +47,49 @@ class SubNewStockMongo():
     统计开板高度，提醒今日开板
     """
 
-    def __init__(self,name="newstock",delta=180,timeout=300):
+    def __init__(self,name="newStock",timeout=300):
         self.client = MongoClient()
         self.db = self.client["stock"]
         self.collection = self.db[name]
         self.conceptCollcetion = self.db["stockConcept"]
-        self.delta = delta
-        self.now = datetime.datetime.now()
-        self.timeout = timeout
-        self.continueCrawl = True
-        self.url = "http://data.10jqka.com.cn/ipo/xgsr/"
 
     def todayRise(self,df):
         stockList= []
         for item in self.collection.find():
             stockList.append(item["stockCode"])
         filter = df.ix[stockList]
-        aveChange = str(round(filter["changepercent"].sum()/len(stockList),2))+"%"
+        aveChange = round(filter["changepercent"].sum()/len(stockList),2)
         print("开板近端次新的今日涨幅: %s" %(aveChange))
         return aveChange
 
     def find_one(self,stockCode):
-        if self.collection.find_one({"stockCode":stockCode}):
-            return True
-        else:
-            return False
+        return self.collection.find_one({"stockCode":stockCode})
 
-    def update(self):
-        browser = webdriver.Firefox()
-        browser.get(self.url)
-        while self.continueCrawl:
-            button = browser.find_elements_by_xpath('//div[@class="m-page J-ajax-page"]/a')[-2]
-            self.crawl_page(browser)
-            button.click()
-            time.sleep(5)
-        browser.close()
-        self.dailyCheck()
+    def delete_one(self,stockCode):
+        self.collection.delete_one({"stockCode":stockCode})
 
-    def crawl_page(self,browser):
-        tr_list = browser.find_elements_by_xpath('//table[@class="m-table J-ajax-table"]/tbody/tr')
-        for tr in tr_list:
-            td_list = tr.find_elements_by_xpath("td")
-            stockCode = td_list[1].text.strip()
-            stockName  =td_list[2].text.strip()
-            ttm = td_list[3].text
-            issue_price = td_list[4].text
-            if self.getStock(ttm):
-                if not self.find_one(stockCode):
-                    print("出现新股：%s\t%s，于%s上市" % (stockCode, stockName, ttm))
-                    self.collection.update({"stockCode": stockCode},
-                                            {"$set": {"stockName":stockName,"ttm":ttm,"issue_price":issue_price,"kb":False}},
-                                            upsert=True)
-                if self.collection.find_one({"stockCode":stockCode,"kb":False}):
-                    kbgd = self.get_KbGd(stockCode)
-                    if kbgd == 0:
-                        self.collection.update({"stockCode": stockCode},
-                                                {"$set": {"stockName":stockName,"ttm":ttm,"issue_price":issue_price,"kb":False}},
-                                                upsert=True)
-                    else:
-                        self.collection.update({"stockCode": stockCode},
-                                                {"$set": {"stockName":stockName,"ttm":ttm,"issue_price":issue_price,"kb":True,"kbgd":kbgd}},
-                                                upsert=True)
-                        self.conceptCollcetion.update({"stockCode":stockCode},
-                                                      {"$addToSet":{"jqkConcept":"开板近端次新"}},
-                                                        upsert=True)
-                        print("%s %s今天开板，开板高度%s" %(stockCode,stockName,kbgd))
-                else:
-                    pass
+    def update(self,stockCode,stockName,ttm,issue_price):
+        if not self.find_one(stockCode):
+            print("出现新股：%s\t%s，于%s上市" % (stockCode, stockName, ttm))
+            self.collection.update({"stockCode": stockCode},
+                                   {"$set": {"stockName": stockName, "ttm": ttm, "issue_price": issue_price,"kb": False}},
+                                    upsert=True)
+        elif self.collection.find_one({"stockCode": stockCode, "kb": False}):
+            kbgd = get_KbGd(stockCode)
+            if kbgd == 0:
+                self.collection.update({"stockCode": stockCode},
+                                       {"$set": {"stockName": stockName, "ttm": ttm, "issue_price": issue_price,"kb": False}},
+                                        upsert=True)
             else:
-                self.continueCrawl = False
-                break
-
-    def dailyCheck(self):
-        for item in self.collection.find():
-            if not self.getStock(item["ttm"]):
-                stockCode = item["stockCode"]
-                self.collection.delete_one(item)
-                self.conceptCollcetion.update({"stockCode":stockCode},{"$pull":{"jqkConcept":"开板近端次新"}})
-                print("%s上市日期已超过%s，因此剔除" %(stockCode,self.delta))
-            else:
-                pass
-
-    def getStock(self,ttm):
-        timedelta = self.now - parse(ttm)
-        if timedelta.days < self.delta:
-            return True
+                self.collection.update({"stockCode": stockCode},
+                                       {"$set": {"stockName": stockName, "ttm": ttm, "issue_price": issue_price,"kb": True, "kbgd": kbgd}},
+                                        upsert=True)
+                self.conceptCollcetion.update({"stockCode": stockCode},
+                                              {"$addToSet": {"jqkConcept": "开板近端次新"}},
+                                               upsert=True)
+                print("%s %s今天开板，开板高度%s" % (stockCode, stockName, kbgd))
         else:
-            return False
-
-    def get_KbGd(self,stockCode):
-        df = ts.get_k_data(stockCode)
-        kbgd = 1
-        marketTime = len(df.index)
-        if marketTime == 1:
-            return 0
-        else:
-            for nu in range(marketTime-1):
-                slice = df.ix[nu+1]
-                if slice["open"] == slice["close"] == slice["high"] == slice["low"]:
-                    kbgd += 1
-                else:
-                    break
-        if kbgd == marketTime:
-            return 0
-        else:
-            return kbgd
-
+            pass
 
 class StockXsjjMongo():
 
@@ -256,12 +196,15 @@ class YesterdayZtMongo():
     def find_one(self,stockCode):
         return self.collection.find_one({"stockCode":stockCode})
 
+    def delete_one(self,stockCode):
+        self.collection.delete_one({"stockCode":stockCode})
+
     def todayRise(self,df):
         stockList= []
         for item in self.collection.find():
             stockList.append(item["stockCode"])
         filter = df.ix[stockList]
-        aveChange = str(round(filter["changepercent"].sum()/len(stockList),2))+"%"
+        aveChange = round(filter["changepercent"].sum()/len(stockList),2)
         print("昨日涨停的今日涨幅: %s" % (aveChange))
         return aveChange
 
@@ -269,11 +212,9 @@ class YesterdayZtMongo():
         """
         排除未开板的新股
         """
-        if self.db["newstock"].find_one({"stockCode":stockCode,"kb":False}):
+        if self.db["newStock"].find_one({"stockCode":stockCode,"kb":False}):
             pass
         else:
-            self.conceptCollcetion.update({"stockCode":stockCode},
-                                          {"$addToSet":{"jqkConcept":"昨日涨停"}})
             if self.collection.find_one({"stockCode":stockCode}):
                 self.collection.update({"stockCode":stockCode},
                                         {"$set":{"stockName":stockName,"today":self.today},"$inc":{"conZt":1}},
@@ -284,11 +225,17 @@ class YesterdayZtMongo():
                 num = max(getConZtNum(stockCode),1)
                 self.collection.insert_one({"stockCode":stockCode,"stockName":stockName,"today":self.today,"conZt":num})
 
-    def dailyCheck(self):
-        for item in self.collection.find({"today":{"$ne":self.today}}):
+    def refresh(self):
+        self.collection.delete_many({"today": {"$ne": self.today}})
+
+    def trasnfer2concept(self):
+        self.conceptCollcetion.update_many({"jqkConcept":{"$all":["昨日涨停"]}},{"$pull":{"jqkConcept":"昨日涨停"}})
+        for item in self.collection.find({"today":self.today}):
             stockCode = item["stockCode"]
-            self.collection.delete_one({"stockCode":stockCode})
-            self.conceptCollcetion.update({"stockCode":stockCode},{"$pull":{"jqkConcept":"昨日涨停"}})
+            stockName = item["stockName"]
+            self.conceptCollcetion.update({"stockCode":stockCode},
+                                          {"$set":{"stockName":stockName},"$addToSet":{"jqkConcept":"昨日涨停"}},
+                                           upsert=True)
 
 class TodayConceptMongo():
     """
@@ -301,17 +248,29 @@ class TodayConceptMongo():
         self.db = self.client["stock"]
         self.collection = self.db["todayConcept"]
         self.timeout = timeout
-        self.today = judge_date()
 
     def find_one(self,conceptType):
         return self.collection.find_one({"conceptType":conceptType})
 
     def update(self,conceptType,percentDict):
         self.collection.update({"conceptType":conceptType},
-                               {"$set":{"percentDict":percentDict,"today":self.today}},
+                               {"$set":{"percentDict":percentDict}},
                                upsert=True)
 
-    def delete_many(self):
-        self.collection.delete_many({"today":{"$ne":self.today}})
 
+class XkhsMongo():
+    """
+    记录每周新开户数
+    """
 
+    def __init__(self,timeout=300):
+        self.client = MongoClient()
+        self.db = self.client["stock"]
+        self.collection = self.db["xkhs"]
+        self.timeout = timeout
+
+    def find_one(self,period):
+        return self.collection.find_one({"perido":period})
+
+    def insert_one(self,period,num):
+        self.collection.insert_one({"period":period,"xkhs":num})
