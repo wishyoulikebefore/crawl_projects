@@ -67,11 +67,6 @@ if __name__ == "__main__":
             pool.apply_async(crawl_page, (conceptName, targetDict.get(conceptName), key,))
     pool.close()
     pool.join()
-    subNewMongo = SubNewStockMongo(delta=180, name="newstock")
-    subNewMongo.update()
-    for item in subNewMongo.collection.find():
-        stockCode = item["stockCode"]
-        StockConceptMongo().collection.update({"stockCode": stockCode}, {"$set": {"subNewStock": True}})
     myMail("概念更新","已完成")
 
 
