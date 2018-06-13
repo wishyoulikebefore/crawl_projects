@@ -1,4 +1,4 @@
-import tushare as ts
+from ts_mongo import *
 import datetime
 from stock_pymongo import *
 from commonFunctions import *
@@ -59,16 +59,16 @@ class AnalysisZt():
             todayRiseList.append(self.conceptRise_collection.find_one(conceptType)["percentDict"][concept])
         return todayRiseList
 
-    def generateConceptFrame(self,conceptType,zipList):
+    def generateConceptFrame(self,conceptType,ZtDict):
         """
         根据输入的概念类型，构建对应的概念矩阵
         """
         modelList = self.conceptDict[conceptType]
         sumList = []
         stockNameList = []
-        for item in zipList:
-            stockCode = item[0]
-            stockNameList.append(item[1])
+        for key,value in ZtDict.items():
+            stockCode = key
+            stockNameList.append(value)
             try:
                 """
                 某些股票在某种概念类型为空
@@ -121,7 +121,6 @@ class AnalysisZt():
             self.conceptRise_collection.update(conceptType,percentDict)
             print("%s爬取完成" %(conceptType))
             self.conceptDict[conceptType] = conceptList
-        self.conceptRise_collection.delete_many()
 
     def startAnalyse(self):
         isExists = os.path.exists(os.path.join(self.saveDir,self.today))
@@ -135,12 +134,10 @@ class AnalysisZt():
         df = ts.get_today_all()
         df = df.set_index("code")
         self.startCrawl(df)
-        zt_df = df[df["changepercent"] > 9.9]
-        zipList = zip(list(zt_df.index),list(zt_df["name"]))
+        ZtDict = getTodayZt(df)
         for conceptType in conceptTypeList:
-            df = self.generateConceptFrame(conceptType,zipList)
-            df.to_csv(conceptType+".csv",encoding="utf_8_sig")
-        for item in zipList:
-            self.yesterdayZt_collection.update(item[0], item[1])
-        self.yesterdayZt_collection.dailyCheck()
+            frame = self.generateConceptFrame(conceptType,ZtDict)
+            frame.to_csv(conceptType+".csv",encoding="utf_8_sig")
+        self.yesterdayZt_collection.refresh()
+        self.yesterdayZt_collection.trasnfer2concept()
 
