@@ -22,12 +22,12 @@ url4 = "https://scholar.google.com.hk/scholar?start=10&q=cancer+sequencing+mutat
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='gb18030')
 
 parser = argparse.ArgumentParser(description='Crawl google scholar')
-parser.add_argument("-k",dest="keywords",action='store',nargs="*")
-parser.add_argument("-limit",type=int)
+parser.add_argument("keywords",action='store',nargs="*")
+parser.add_argument("-l",type=int)
 args = parser.parse_args()
 
 keywords = "+".join(args.keywords)
-pageLimit = args.limit
+pageLimit = args.l
 
 def getHtmlPage(page,cookies=None):
     url = "https://scholar.google.com.hk/scholar?start=%d&q=%s&hl=zh-CN&as_sdt=0,5" %(10*page,keywords)
