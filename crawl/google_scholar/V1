@@ -18,16 +18,22 @@ url3 = "https://scholar.google.com.hk/scholar?hl=zh-CN&as_sdt=0,5&q=cancer+seque
 url4 = "https://scholar.google.com.hk/scholar?start=10&q=cancer+sequencing+mutation&hl=zh-CN&as_sdt=0,5"
 #每页呈现10个结果
 """
+"""
+需要改进：
+1）根据link信息补充文献来源，添加影响因子
+2）统计作者信息，新增基于作者查询文献功能
+3）切换到按日期排序，跟踪最新文章，根据影响因子筛选
+"""
 #cmd不能很好地兼容utf8，而IDLE就可以
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='gb18030')
 
 parser = argparse.ArgumentParser(description='Crawl google scholar')
-parser.add_argument("keywords",action='store',nargs="*")
-parser.add_argument("-l",type=int)
+parser.add_argument("-k",action='store',nargs="*")
+parser.add_argument("-lim",type=int)
 args = parser.parse_args()
 
-keywords = "+".join(args.keywords)
-pageLimit = args.l
+keywords = "+".join(args.k)
+pageLimit = args.lim
 
 def getHtmlPage(page,cookies=None):
     url = "https://scholar.google.com.hk/scholar?start=%d&q=%s&hl=zh-CN&as_sdt=0,5" %(10*page,keywords)
@@ -47,6 +53,7 @@ def getHtmlPage(page,cookies=None):
         "Connection": "keep - alive",
         "Accept":"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         }
+    print("爬虫将要访问的网址为：%s" %(url))
     if cookies == None:
         html = requests.get(url,headers=headers)
     else:
@@ -58,11 +65,17 @@ for nu in range(pageLimit):
     soup = getHtmlPage(nu)
     targetItems = soup.find("div",id="gs_res_ccl").find_all("div",class_="gs_r gs_or gs_scl")
     for item in targetItems:
-        link = item.find("h3",class_="gs_rt").find("a")["href"]
-        info = item.find("div",class_="gs_a").get_text()
-        citeNum = re.search("被引用次数：\d+",str(item)).group(0)
-        print(link)
-        print(info)
-        print(citeNum)
-        print("------")
-    time.sleep(1+random.random())
+        try:
+            paper = item.find("h3",class_="gs_rt").find("a").get_text()
+            link = item.find("h3",class_="gs_rt").find("a")["href"]
+            info = item.find("div",class_="gs_a").get_text()
+            published_time = re.search("(\d+)",info)
+            citeNum = re.search("被引用次数：\d+",str(item)).group(0).replace("被引用次数：","")
+            print(paper)
+            print(link)
+            print(published_time.group(1))
+            print(citeNum)
+            print("------")
+        except Exception as e:
+            pass
+    time.sleep(3+random.random())
